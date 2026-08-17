@@ -22,7 +22,7 @@ class ProductoAPITestCase(TestCase):
         self.list_url = reverse('producto-list')
         self.detail_url = lambda pk: reverse('producto-detail', args=[pk])
         
-        # Datos de prueba basados en tus productos existentes
+        # Datos de prueba basados en los productos existentes, ingresados previamente vía POST
         self.productos_existentes = [
             {
                 'id': 1,
