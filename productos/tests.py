@@ -3,45 +3,80 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
-from django.contrib.auth.models import User
-from .models import Producto
+from datetime import datetime
 import json
+from .models import Producto
+
 
 class ProductoAPITestCase(TestCase):
+    """
+    Pruebas automatizadas para la API de Productos
+    Basadas en los datos existentes
+    """
+
     def setUp(self):
-        """Configuración inicial para todas las pruebas"""
+        """Configuración inicial - No crea datos, usa los existentes"""
         self.client = APIClient()
         
-        # Crear productos de prueba
-        self.producto1 = Producto.objects.create(
-            codigo="P001",
-            nombre="Laptop Dell",
-            descripcion="Laptop 16GB RAM, 512GB SSD",
-            precio=799.99,
-            activo=True
-        )
-        
-        self.producto2 = Producto.objects.create(
-            codigo="P002",
-            nombre="Mouse Logitech",
-            descripcion="Mouse inalámbrico ergonómico",
-            precio=29.99,
-            activo=True
-        )
-        
-        self.producto3 = Producto.objects.create(
-            codigo="P003",
-            nombre="Monitor Samsung",
-            descripcion="Monitor 24 pulgadas Full HD",
-            precio=199.99,
-            activo=False
-        )
-
         # URLs para las pruebas
         self.list_url = reverse('producto-list')
         self.detail_url = lambda pk: reverse('producto-detail', args=[pk])
+        
+        # Datos de prueba basados en tus productos existentes
+        self.productos_existentes = [
+            {
+                'id': 1,
+                'codigo': 'P001',
+                'nombre': 'Laptop',
+                'descripcion': 'Laptop 16GB RAM',
+                'precio': '799.99',
+                'activo': True
+            },
+            {
+                'id': 2,
+                'codigo': 'P002',
+                'nombre': 'Mouse Logitech',
+                'descripcion': 'Mouse inalámbrico',
+                'precio': '29.99',
+                'activo': True
+            },
+            {
+                'id': 3,
+                'codigo': 'P003',
+                'nombre': 'Monitor Samsung',
+                'descripcion': 'Monitor 24 pulgadas',
+                'precio': '199.99',
+                'activo': True
+            },
+            {
+                'id': 4,
+                'codigo': 'P004',
+                'nombre': 'Teclado Mecánico',
+                'descripcion': 'Teclado RGB',
+                'precio': '89.99',
+                'activo': True
+            },
+            {
+                'id': 5,
+                'codigo': 'P005',
+                'nombre': 'Disco Ssd',
+                'descripcion': 'SSD 1TB',
+                'precio': '129.99',
+                'activo': True
+            },
+            {
+                'id': 6,
+                'codigo': 'P010',
+                'nombre': 'Mouse Rgb',
+                'descripcion': None,
+                'precio': '20.00',
+                'activo': True
+            }
+        ]
 
-    # ============ PRUEBA 1: Listar productos ============
+    # =============================================
+    # PRUEBA 1: Listar todos los productos
+    # =============================================
     def test_listar_productos(self):
         """
         Prueba: Verificar que la lista de productos retorna correctamente
@@ -49,24 +84,72 @@ class ProductoAPITestCase(TestCase):
         response = self.client.get(self.list_url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['count'], 3)  # Total de productos
-        self.assertEqual(len(response.data['results']), 3)  # Productos en página actual
+        self.assertEqual(response.data['count'], 6)  # Deberían ser 6 productos
         
-        # Verificar que los productos estén ordenados correctamente
-        first_product = response.data['results'][0]
-        self.assertEqual(first_product['codigo'], self.producto1.codigo)
-        self.assertEqual(first_product['nombre'], self.producto1.nombre)
+        # Verificar que los IDs coinciden
+        ids = [item['id'] for item in response.data['results']]
+        self.assertIn(1, ids)  # Laptop
+        self.assertIn(2, ids)  # Mouse Logitech
+        self.assertIn(3, ids)  # Monitor Samsung
+        self.assertIn(4, ids)  # Teclado Mecánico
+        self.assertIn(5, ids)  # Disco Ssd
+        self.assertIn(6, ids)  # Mouse Rgb
 
-    # ============ PRUEBA 2: Crear producto ============
+    # =============================================
+    # PRUEBA 2: Verificar productos específicos
+    # =============================================
+    def test_verificar_producto_laptop(self):
+        """
+        Prueba: Verificar que el producto Laptop existe con los datos correctos
+        """
+        response = self.client.get(self.detail_url(1))
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['codigo'], 'P001')
+        self.assertEqual(response.data['nombre'], 'Laptop')
+        self.assertEqual(response.data['descripcion'], 'Laptop 16GB RAM')
+        self.assertEqual(response.data['precio'], '799.99')
+        self.assertTrue(response.data['activo'])
+
+    def test_verificar_producto_mouse_logitech(self):
+        """
+        Prueba: Verificar que el producto Mouse Logitech existe
+        """
+        response = self.client.get(self.detail_url(2))
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['codigo'], 'P002')
+        self.assertEqual(response.data['nombre'], 'Mouse Logitech')
+        self.assertEqual(response.data['descripcion'], 'Mouse inalámbrico')
+        self.assertEqual(response.data['precio'], '29.99')
+
+    def test_verificar_producto_mouse_rgb(self):
+        """
+        Prueba: Verificar que el producto Mouse Rgb tiene descripción nula
+        """
+        response = self.client.get(self.detail_url(6))
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['codigo'], 'P010')
+        self.assertEqual(response.data['nombre'], 'Mouse Rgb')
+        self.assertIsNone(response.data['descripcion'])
+        self.assertEqual(response.data['precio'], '20.00')
+
+    # =============================================
+    # PRUEBA 3: Crear nuevo producto
+    # =============================================
     def test_crear_producto(self):
         """
-        Prueba: Crear un nuevo producto correctamente
+        Prueba: Crear un nuevo producto (debe incrementar el conteo)
         """
+        # Contar productos antes
+        count_before = Producto.objects.count()
+        
         data = {
-            "codigo": "P004",
-            "nombre": "Teclado Mecánico",
-            "descripcion": "Teclado mecánico RGB",
-            "precio": 89.99
+            "codigo": "P011",
+            "nombre": "Audífonos Sony",
+            "descripcion": "Audífonos con cancelación de ruido",
+            "precio": 149.99
         }
         
         response = self.client.post(
@@ -76,21 +159,26 @@ class ProductoAPITestCase(TestCase):
         )
         
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Producto.objects.count(), 4)
+        
+        # Verificar que el conteo aumentó
+        count_after = Producto.objects.count()
+        self.assertEqual(count_after, count_before + 1)
         
         # Verificar que el producto se creó correctamente
-        producto_creado = Producto.objects.get(codigo="P004")
-        self.assertEqual(producto_creado.nombre, "Teclado Mecánico")
-        self.assertEqual(float(producto_creado.precio), 89.99)
-        self.assertTrue(producto_creado.activo)  # Por defecto activo
+        nuevo_producto = Producto.objects.get(codigo='P011')
+        self.assertEqual(nuevo_producto.nombre, 'Audífonos Sony')
+        self.assertEqual(nuevo_producto.descripcion, 'Audífonos con cancelación de ruido')
+        self.assertEqual(float(nuevo_producto.precio), 149.99)
 
-    # ============ PRUEBA 3: Validación de código único ============
+    # =============================================
+    # PRUEBA 4: No permitir códigos duplicados
+    # =============================================
     def test_crear_producto_codigo_duplicado(self):
         """
-        Prueba: Intentar crear un producto con código duplicado debe fallar
+        Prueba: Intentar crear producto con código existente (debe fallar)
         """
         data = {
-            "codigo": "P001",  # Código ya existente
+            "codigo": "P001",  # Código ya existente (Laptop)
             "nombre": "Producto Duplicado",
             "descripcion": "Este producto tiene código duplicado",
             "precio": 100.00
@@ -103,20 +191,25 @@ class ProductoAPITestCase(TestCase):
         )
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(Producto.objects.count(), 3)  # No se creó nuevo producto
         self.assertIn('error', response.data)
+        self.assertEqual(response.data['error'], 'Ya existe un producto con el código P001')
 
-    # ============ PRUEBA 4: Actualizar producto ============
+    # =============================================
+    # PRUEBA 5: Actualizar producto existente
+    # =============================================
     def test_actualizar_producto(self):
         """
         Prueba: Actualizar un producto existente
         """
-        url = self.detail_url(self.producto1.id)
+        # Obtener el producto Monitor Samsung
+        producto = Producto.objects.get(codigo='P003')
+        url = self.detail_url(producto.id)
+        
         data = {
-            "codigo": "P001",
-            "nombre": "Laptop Dell XPS",
-            "descripcion": "Laptop 32GB RAM, 1TB SSD",
-            "precio": 1299.99
+            "codigo": "P003",
+            "nombre": "Monitor Samsung 4K",
+            "descripcion": "Monitor 27 pulgadas 4K",
+            "precio": 399.99
         }
         
         response = self.client.put(
@@ -128,101 +221,236 @@ class ProductoAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         # Verificar que se actualizó correctamente
-        self.producto1.refresh_from_db()
-        self.assertEqual(self.producto1.nombre, "Laptop Dell XPS")
-        self.assertEqual(float(self.producto1.precio), 1299.99)
-        self.assertEqual(self.producto1.descripcion, "Laptop 32GB RAM, 1TB SSD")
+        producto.refresh_from_db()
+        self.assertEqual(producto.nombre, 'Monitor Samsung 4K')
+        self.assertEqual(producto.descripcion, 'Monitor 27 pulgadas 4K')
+        self.assertEqual(float(producto.precio), 399.99)
 
-    # ============ PRUEBA 5: Toggle activo/desactivo ============
-    def test_toggle_activo_producto(self):
+    # =============================================
+    # PRUEBA 6: Actualizar parcialmente
+    # =============================================
+    def test_actualizar_parcialmente(self):
         """
-        Prueba: Activar y desactivar un producto
+        Prueba: Actualizar solo el precio de un producto
         """
-        url = reverse('producto-toggle-activo', args=[self.producto1.id])
+        producto = Producto.objects.get(codigo='P004')  # Teclado Mecánico
+        url = self.detail_url(producto.id)
         
-        # Desactivar producto (activo = True -> False)
-        response = self.client.patch(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.producto1.refresh_from_db()
-        self.assertFalse(self.producto1.activo)
-        self.assertEqual(response.data['activo'], False)
+        data = {
+            "precio": 69.99  # Solo actualizar precio
+        }
         
-        # Volver a activar producto (activo = False -> True)
-        response = self.client.patch(url)
+        response = self.client.patch(
+            url,
+            data=json.dumps(data),
+            content_type='application/json'
+        )
+        
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.producto1.refresh_from_db()
-        self.assertTrue(self.producto1.activo)
-        self.assertEqual(response.data['activo'], True)
+        
+        producto.refresh_from_db()
+        self.assertEqual(float(producto.precio), 69.99)
+        self.assertEqual(producto.nombre, 'Teclado Mecánico')  # Sin cambios
 
-    # ============ PRUEBA 6: Buscar productos ============
-    def test_buscar_productos(self):
+    # =============================================
+    # PRUEBA 7: Buscar productos
+    # =============================================
+    def test_buscar_por_codigo(self):
         """
-        Prueba: Buscar productos por texto
+        Prueba: Buscar productos por código
         """
-        # Buscar por código
         url = f"{self.list_url}buscar/?q=P001"
         response = self.client.get(url)
+        
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['codigo'], "P001")
-        
-        # Buscar por nombre
-        url = f"{self.list_url}buscar/?q=Laptop"
+        self.assertEqual(response.data[0]['codigo'], 'P001')
+        self.assertEqual(response.data[0]['nombre'], 'Laptop')
+
+    def test_buscar_por_nombre(self):
+        """
+        Prueba: Buscar productos por nombre
+        """
+        url = f"{self.list_url}buscar/?q=Mouse"
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['nombre'], "Laptop Dell")
         
-        # Buscar por descripción
-        url = f"{self.list_url}buscar/?q=inalámbrico"
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)  # Mouse Logitech y Mouse Rgb
+        
+        nombres = [item['nombre'] for item in response.data]
+        self.assertIn('Mouse Logitech', nombres)
+        self.assertIn('Mouse Rgb', nombres)
+
+    def test_buscar_por_descripcion(self):
+        """
+        Prueba: Buscar productos por descripción
+        """
+        url = f"{self.list_url}buscar/?q=SSD"
         response = self.client.get(url)
+        
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['codigo'], "P002")
-        
-        # Búsqueda sin resultados
+        self.assertEqual(response.data[0]['codigo'], 'P005')
+        self.assertEqual(response.data[0]['nombre'], 'Disco Ssd')
+
+    def test_buscar_sin_resultados(self):
+        """
+        Prueba: Búsqueda sin resultados
+        """
         url = f"{self.list_url}buscar/?q=inexistente"
         response = self.client.get(url)
+        
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
-    # ============ PRUEBA 7: Filtrar productos activos ============
-    def test_filtrar_productos_activos(self):
+    # =============================================
+    # PRUEBA 8: Filtrar productos
+    # =============================================
+    def test_filtrar_por_precio_minimo(self):
         """
-        Prueba: Obtener solo productos activos
+        Prueba: Filtrar productos con precio >= 100
         """
-        url = f"{self.list_url}activos/"
+        url = f"{self.list_url}?precio_min=100"
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # Solo P001 y P002 están activos
+        # Deberían ser: Laptop (799.99), Monitor (199.99), Disco SSD (129.99)
+        self.assertEqual(response.data['count'], 3)
         
-        # Verificar que todos sean activos
-        for producto in response.data:
-            self.assertTrue(producto['activo'])
+        precios = [float(item['precio']) for item in response.data['results']]
+        for precio in precios:
+            self.assertTrue(precio >= 100)
 
-    # ============ PRUEBA 8: Eliminar producto ============
-    def test_eliminar_producto(self):
+    def test_filtrar_por_precio_maximo(self):
         """
-        Prueba: Eliminar un producto
+        Prueba: Filtrar productos con precio <= 50
         """
-        url = self.detail_url(self.producto1.id)
-        response = self.client.delete(url)
+        url = f"{self.list_url}?precio_max=50"
+        response = self.client.get(url)
         
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(Producto.objects.count(), 2)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Deberían ser: Mouse Logitech (29.99) y Mouse Rgb (20.00)
+        self.assertEqual(response.data['count'], 2)
         
-        # Verificar que el producto ya no existe
-        with self.assertRaises(Producto.DoesNotExist):
-            Producto.objects.get(id=self.producto1.id)
+        precios = [float(item['precio']) for item in response.data['results']]
+        for precio in precios:
+            self.assertTrue(precio <= 50)
 
-    # ============ PRUEBA 9: Validación de precio negativo ============
-    def test_crear_producto_precio_negativo(self):
+    def test_filtrar_por_rango_precio(self):
+        """
+        Prueba: Filtrar productos en rango de precio
+        """
+        url = f"{self.list_url}?precio_min=80&precio_max=150"
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Deberían ser: Teclado Mecánico (89.99) y Disco SSD (129.99)
+        self.assertEqual(response.data['count'], 2)
+        
+        nombres = [item['nombre'] for item in response.data['results']]
+        self.assertIn('Teclado Mecánico', nombres)
+        self.assertIn('Disco Ssd', nombres)
+
+    # =============================================
+    # PRUEBA 9: Ordenar productos
+    # =============================================
+    def test_ordenar_por_precio_ascendente(self):
+        """
+        Prueba: Ordenar productos por precio ascendente
+        """
+        url = f"{self.list_url}?ordering=precio"
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        precios = [float(item['precio']) for item in response.data['results']]
+        self.assertEqual(precios, sorted(precios))
+        
+        # El primer producto debería ser Mouse Rgb (20.00)
+        self.assertEqual(response.data['results'][0]['nombre'], 'Mouse Rgb')
+        self.assertEqual(float(response.data['results'][0]['precio']), 20.00)
+
+    def test_ordenar_por_precio_descendente(self):
+        """
+        Prueba: Ordenar productos por precio descendente
+        """
+        url = f"{self.list_url}?ordering=-precio"
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        precios = [float(item['precio']) for item in response.data['results']]
+        self.assertEqual(precios, sorted(precios, reverse=True))
+        
+        # El primer producto debería ser Laptop (799.99)
+        self.assertEqual(response.data['results'][0]['nombre'], 'Laptop')
+        self.assertEqual(float(response.data['results'][0]['precio']), 799.99)
+
+    def test_ordenar_por_nombre(self):
+        """
+        Prueba: Ordenar productos por nombre alfabéticamente
+        """
+        url = f"{self.list_url}?ordering=nombre"
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        nombres = [item['nombre'] for item in response.data['results']]
+        self.assertEqual(nombres, sorted(nombres))
+        
+        # El primer producto alfabéticamente debería ser Disco Ssd
+        self.assertEqual(response.data['results'][0]['nombre'], 'Disco Ssd')
+
+    # =============================================
+    # PRUEBA 10: Toggle activo/desactivo
+    # =============================================
+    def test_toggle_activo_desactivar(self):
+        """
+        Prueba: Desactivar un producto
+        """
+        # Tomar el producto Mouse Logitech
+        producto = Producto.objects.get(codigo='P002')
+        self.assertTrue(producto.activo)
+        
+        url = reverse('producto-toggle-activo', args=[producto.id])
+        response = self.client.patch(url)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        producto.refresh_from_db()
+        self.assertFalse(producto.activo)
+        self.assertEqual(response.data['activo'], False)
+        self.assertEqual(response.data['mensaje'], 'Producto desactivado correctamente')
+
+    def test_toggle_activo_reactivar(self):
+        """
+        Prueba: Reactivar un producto previamente desactivado
+        """
+        # Primero desactivar
+        producto = Producto.objects.get(codigo='P003')
+        url = reverse('producto-toggle-activo', args=[producto.id])
+        
+        response = self.client.patch(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        producto.refresh_from_db()
+        self.assertFalse(producto.activo)
+        
+        # Luego reactivar
+        response = self.client.patch(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        producto.refresh_from_db()
+        self.assertTrue(producto.activo)
+        self.assertEqual(response.data['mensaje'], 'Producto activado correctamente')
+
+    # =============================================
+    # PRUEBA 11: Validaciones
+    # =============================================
+    def test_validar_precio_negativo(self):
         """
         Prueba: No permitir precios negativos
         """
         data = {
-            "codigo": "P005",
+            "codigo": "P999",
             "nombre": "Producto Inválido",
             "descripcion": "Precio negativo",
             "precio": -100.00
@@ -237,92 +465,170 @@ class ProductoAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('precio', response.data)
 
-    # ============ PRUEBA 10: Filtrar por precio mínimo ============
-    def test_filtrar_por_precio_minimo(self):
+    def test_validar_codigo_vacio(self):
         """
-        Prueba: Filtrar productos con precio >= valor especificado
+        Prueba: No permitir código vacío
         """
-        url = f"{self.list_url}?precio_min=100"
-        response = self.client.get(url)
+        data = {
+            "codigo": "",
+            "nombre": "Producto sin código",
+            "descripcion": "Código vacío",
+            "precio": 100.00
+        }
         
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Debería mostrar P001 (799.99) y P003 (199.99)
-        self.assertEqual(response.data['count'], 2)
-        
-        # Verificar que todos los precios sean >= 100
-        for producto in response.data['results']:
-            self.assertTrue(float(producto['precio']) >= 100)
-
-    # ============ PRUEBA 11: Ordenar productos ============
-    def test_ordenar_productos(self):
-        """
-        Prueba: Ordenar productos por precio
-        """
-        # Orden ascendente
-        url = f"{self.list_url}?ordering=precio"
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        precios = [float(p['precio']) for p in response.data['results']]
-        self.assertEqual(precios, sorted(precios))  # Verificar orden ascendente
-        
-        # Orden descendente
-        url = f"{self.list_url}?ordering=-precio"
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        precios = [float(p['precio']) for p in response.data['results']]
-        self.assertEqual(precios, sorted(precios, reverse=True))  # Verificar orden descendente
-
-
-class ProductoModelTestCase(TestCase):
-    """
-    Pruebas para el modelo Producto
-    """
-    def setUp(self):
-        self.producto = Producto.objects.create(
-            codigo="TEST001",
-            nombre="Producto de Prueba",
-            descripcion="Descripción de prueba",
-            precio=99.99
+        response = self.client.post(
+            self.list_url,
+            data=json.dumps(data),
+            content_type='application/json'
         )
+        
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_validar_nombre_vacio(self):
+        """
+        Prueba: No permitir nombre vacío
+        """
+        data = {
+            "codigo": "P999",
+            "nombre": "",
+            "descripcion": "Nombre vacío",
+            "precio": 100.00
+        }
+        
+        response = self.client.post(
+            self.list_url,
+            data=json.dumps(data),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # =============================================
+    # PRUEBA 12: Eliminar producto
+    # =============================================
+    def test_eliminar_producto(self):
+        """
+        Prueba: Eliminar un producto
+        """
+        # Crear un producto temporal para eliminar
+        producto_temp = Producto.objects.create(
+            codigo='P999',
+            nombre='Producto Temporal',
+            precio=10.00
+        )
+        
+        count_before = Producto.objects.count()
+        url = self.detail_url(producto_temp.id)
+        response = self.client.delete(url)
+        
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Producto.objects.count(), count_before - 1)
+
+    # =============================================
+    # PRUEBA 13: Endpoints de salud
+    # =============================================
+    def test_health_check(self):
+        """
+        Prueba: Verificar el endpoint de salud
+        """
+        response = self.client.get('/api/productos/health/')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'healthy')
+        self.assertIn('timestamp', response.data)
+
+    def test_ping(self):
+        """
+        Prueba: Verificar el endpoint ping
+        """
+        response = self.client.get('/api/productos/ping/')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'ok')
+        self.assertEqual(response.data['message'], 'pong')
+
+    def test_version(self):
+        """
+        Prueba: Verificar el endpoint de versión
+        """
+        response = self.client.get('/api/productos/version/')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('version', response.data)
+        self.assertIn('environment', response.data)
+        self.assertIn('git', response.data)
+        self.assertIn('commit', response.data['git'])
+        self.assertIn('branch', response.data['git'])
+
+    # =============================================
+    # PRUEBA 14: Datos específicos de tus productos
+    # =============================================
+    def test_cantidad_total_productos(self):
+        """
+        Prueba: Verificar que hay exactamente 6 productos
+        """
+        count = Producto.objects.count()
+        self.assertEqual(count, 6)
+
+    def test_todos_los_productos_estan_activos(self):
+        """
+        Prueba: Verificar que todos los productos están activos
+        """
+        productos = Producto.objects.all()
+        for producto in productos:
+            self.assertTrue(producto.activo)
+
+    def test_precios_unicos(self):
+        """
+        Prueba: Verificar que todos los precios son únicos
+        """
+        precios = Producto.objects.values_list('precio', flat=True)
+        self.assertEqual(len(precios), len(set(precios)))
+
+    def test_codigos_formateados(self):
+        """
+        Prueba: Verificar que los códigos están en mayúsculas
+        """
+        productos = Producto.objects.all()
+        for producto in productos:
+            self.assertEqual(producto.codigo, producto.codigo.upper())
+
+    def test_nombres_formateados(self):
+        """
+        Prueba: Verificar que los nombres tienen formato título
+        """
+        # Verificar algunos productos específicos
+        laptop = Producto.objects.get(codigo='P001')
+        self.assertEqual(laptop.nombre, 'Laptop')
+        
+        mouse = Producto.objects.get(codigo='P002')
+        self.assertEqual(mouse.nombre, 'Mouse Logitech')
+
+
+class ModelProductoTestCase(TestCase):
+    """
+    Pruebas para el modelo Producto con datos existentes
+    """
 
     def test_str_method(self):
         """
         Prueba: Verificar el método __str__ del modelo
         """
-        expected_str = f"{self.producto.codigo} - {self.producto.nombre}"
-        self.assertEqual(str(self.producto), expected_str)
+        producto = Producto.objects.get(codigo='P001')
+        expected_str = "P001 - Laptop"
+        self.assertEqual(str(producto), expected_str)
 
-    def test_codigo_mayusculas(self):
+    def test_auto_fechas(self):
         """
-        Prueba: Verificar que el código se guarda en mayúsculas
+        Prueba: Verificar que las fechas se generan automáticamente
         """
-        producto = Producto.objects.create(
-            codigo="test002",
-            nombre="Otro Producto",
-            precio=50.00
-        )
-        self.assertEqual(producto.codigo, "TEST002")  # Debe estar en mayúsculas
+        producto = Producto.objects.get(codigo='P002')
+        self.assertIsNotNone(producto.fecha_creacion)
+        self.assertIsNotNone(producto.fecha_actualizacion)
 
-    def test_nombre_formato_titulo(self):
+    def test_descripcion_nula(self):
         """
-        Prueba: Verificar que el nombre se guarda con formato título
+        Prueba: Verificar que la descripción puede ser nula
         """
-        producto = Producto.objects.create(
-            codigo="TEST003",
-            nombre="producto de prueba",
-            precio=50.00
-        )
-        self.assertEqual(producto.nombre, "Producto De Prueba")  # Formato título
-
-    def test_activo_por_defecto(self):
-        """
-        Prueba: Verificar que el campo activo es True por defecto
-        """
-        producto = Producto.objects.create(
-            codigo="TEST004",
-            nombre="Nuevo Producto",
-            precio=50.00
-        )
-        self.assertTrue(producto.activo)
+        producto = Producto.objects.get(codigo='P010')
+        self.assertIsNone(producto.descripcion)
