@@ -1,5 +1,5 @@
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator
 from django.utils import timezone
 
 class Producto(models.Model):
@@ -50,7 +50,6 @@ class Producto(models.Model):
         return f"{self.codigo} - {self.nombre}"
 
     def save(self, *args, **kwargs):
-        # Limpiar espacios en blanco en campos importantes
         self.codigo = self.codigo.strip().upper()
         self.nombre = self.nombre.strip().title()
         if self.descripcion:
