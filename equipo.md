@@ -1,1 +1,0 @@
-Publicando integrante Luis Bravo
